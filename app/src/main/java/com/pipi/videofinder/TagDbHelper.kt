@@ -67,6 +67,13 @@ class TagDbHelper(context: Context) {
         return list
     }
 
+    /**
+     * 태그 DB 전체 초기화 (재분석용)
+     */
+    fun clearAll() {
+        prefs.edit().clear().apply()
+    }
+
     private fun buildKey(fileName: String, durationMs: Long): String {
         return "vid_${fileName}_$durationMs"
     }

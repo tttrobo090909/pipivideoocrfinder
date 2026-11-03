@@ -3,50 +3,47 @@ package com.pipi.videofinder
 object TagFilter {
 
     /**
-     * OCR로 검출된 문장/단어 목록에서 오타와 노이즈(외계어 파편, 특수문자, 1글자 잡음)를 걸러내고
-     * 의미 있는 정제된 #태그 목록을 생성합니다.
+     * OCR 결과에서 영문(알파벳)과 외계어 파편을 100% 원천 차단하고,
+     * 오직 2글자 이상의 순수 완성형 한글(가-힣) 단어만 선별하여 깨끗한 #태그를 생성합니다.
      */
     fun extractCleanTags(rawTexts: List<String>): List<String> {
         val candidateTags = mutableSetOf<String>()
 
         for (raw in rawTexts) {
-            // 줄바꿈을 공백으로 치환하고 특수문자 정제
-            val cleaned = raw.replace("\n", " ")
-                .replace(Regex("[^가-힣a-zA-Z0-9\\s]"), " ")
+            // 1. 영문(a-zA-Z) 및 특수문자 전면 제거, 오직 순수 한글과 공백만 보존
+            val koreanOnly = raw.replace("\n", " ")
+                .replace(Regex("[^가-힣\\s]"), " ")
                 .trim()
 
-            // 띄어쓰기 단위로 단어 분리
-            val words = cleaned.split(Regex("\\s+")).filter { it.isNotBlank() }
+            val words = koreanOnly.split(Regex("\\s+")).filter { it.isNotBlank() }
 
-            // 1. 단어 단위 추출 (2글자 이상, 순수 자음/모음만 있는 경우 제외)
+            // 2. 순수 한글 단어 선별 (2글자 이상)
             for (word in words) {
-                if (isValidTagWord(word)) {
+                if (isValidKoreanTag(word)) {
                     candidateTags.add("#$word")
                 }
             }
 
-            // 2. 2~3단어로 구성된 자연스러운 구문(예: "베드로의 고백처럼" -> "베드로의고백처럼")도 태그 후보로 병합
-            if (words.size in 2..4) {
+            // 3. 자막 구문 결합 (예: "온땅이여", "반전완료", "영으로 진리로" -> "영으로진리로")
+            if (words.size in 2..3) {
                 val combined = words.joinToString("")
-                if (combined.length in 4..16 && isValidTagWord(combined)) {
+                if (combined.length in 4..12 && isValidKoreanTag(combined)) {
                     candidateTags.add("#$combined")
                 }
             }
         }
 
-        // 길이 및 의미 우선순위 정렬 (너무 짧거나 긴 것 제외, 상위 태그 선별)
+        // 길이 및 품질 우선순위 정렬 후 상위 6개 선별
         return candidateTags
-            .filter { it.length in 3..18 } // '#' 포함 3자~18자
+            .filter { it.length in 3..14 } // '#' 포함 3자~14자
             .sortedByDescending { it.length }
-            .take(6) // 영상당 가장 유의미한 상위 6개 태그 선별
+            .take(6)
     }
 
-    private fun isValidTagWord(word: String): Boolean {
+    private fun isValidKoreanTag(word: String): Boolean {
         if (word.length < 2) return false
-        // 자음/모음만 있는 경우(ㅋㅋㅋ, ㅎㅎ, ㅠㅠ) 제외
-        if (word.all { it in 'ㄱ'..'ㅣ' }) return false
-        // 숫자만 있는 경우(1234) 제외
-        if (word.all { it.isDigit() }) return false
+        // 모든 글자가 완성형 한글('가'..'힣')이어야 함 (자음/모음 낱자 제외, 영문/숫자 전면 배제)
+        if (!word.all { it in '가'..'힣' }) return false
         return true
     }
 }

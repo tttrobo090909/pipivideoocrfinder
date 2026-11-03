@@ -25,8 +25,8 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="⚡ 0~10초 초고속 OCR · 스마트 태그 갤러리"
-            android:textColor="@color/on_surface_secondary"
+            android:text="🇰🇷 100% 한글 전용 OCR · 0~10초 초고속 태그 갤러리"
+            android:textColor="@color/secondary"
             android:textSize="13sp"
             android:layout_marginTop="2dp" />
     </LinearLayout>
@@ -59,7 +59,7 @@
             android:layout_marginStart="6dp" />
     </LinearLayout>
 
-    <!-- 상태 및 진행 바 -->
+    <!-- 상태 및 진행 바 + 재분석 버튼 -->
     <LinearLayout
         android:id="@+id/layoutStatus"
         android:layout_width="match_parent"
@@ -69,13 +69,31 @@
         android:padding="10dp"
         android:layout_marginBottom="12dp">
 
-        <TextView
-            android:id="@+id/tvStatus"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="💡 폴더나 영상을 선택해 태그를 추출해 보세요."
-            android:textColor="@color/secondary"
-            android:textSize="13sp" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/tvStatus"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="💡 폴더나 영상을 선택해 태그를 추출해 보세요."
+                android:textColor="@color/secondary"
+                android:textSize="13sp" />
+
+            <Button
+                android:id="@+id/btnReanalyzeKorean"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="🔄 한글 재분석"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="@color/primary"
+                android:layout_marginStart="8dp" />
+        </LinearLayout>
 
         <ProgressBar
             android:id="@+id/progressBar"
@@ -92,7 +110,7 @@
         android:layout_width="match_parent"
         android:layout_height="48dp"
         android:background="@color/surface_variant"
-        android:hint="🔍 파일명 또는 #태그 실시간 검색..."
+        android:hint="🔍 파일명 또는 #한글태그 실시간 검색..."
         android:textColorHint="@color/on_surface_secondary"
         android:textColor="@color/on_surface"
         android:paddingStart="16dp"

@@ -32,6 +32,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var btnSelectFolder: Button
     private lateinit var btnSelectVideos: Button
+    private lateinit var btnReanalyzeKorean: Button
     private lateinit var tvStatus: TextView
     private lateinit var progressBar: ProgressBar
     private lateinit var etSearch: EditText
@@ -82,6 +83,7 @@ class MainActivity : AppCompatActivity() {
     private fun initViews() {
         btnSelectFolder = findViewById(R.id.btnSelectFolder)
         btnSelectVideos = findViewById(R.id.btnSelectVideos)
+        btnReanalyzeKorean = findViewById(R.id.btnReanalyzeKorean)
         tvStatus = findViewById(R.id.tvStatus)
         progressBar = findViewById(R.id.progressBar)
         etSearch = findViewById(R.id.etSearch)
@@ -110,6 +112,18 @@ class MainActivity : AppCompatActivity() {
 
         btnSelectVideos.setOnClickListener {
             selectVideosLauncher.launch("video/*")
+        }
+
+        // 한글 전용 전체 재분석 버튼
+        btnReanalyzeKorean.setOnClickListener {
+            if (allVideoList.isEmpty()) {
+                Toast.makeText(this, "먼저 영상을 선택해 주세요.", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            val targetVideos = allVideoList.map { Pair(Uri.parse(it.uriString), it.name) }
+            dbHelper.clearAll()
+            allVideoList.clear()
+            processVideoList(targetVideos)
         }
 
         etSearch.addTextChangedListener(object : TextWatcher {
@@ -187,8 +201,8 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * 선택된 비디오 목록에 대해:
-     * 1) 이미 분석된 태그 DB가 있는지 0.01초 만에 확인하여 즉시 재사용 (중복 분석 방지)
-     * 2) 새로운 비디오만 초반 10초 OCR 분석 수행
+     * 1) 이미 분석된 태그 DB가 있는지 0.01초 만에 확인하여 즉시 재사용
+     * 2) 새로운 비디오만 초반 10초 OCR 분석 수행 (100% 한글 전용 필터 적용)
      */
     private fun processVideoList(videos: List<Pair<Uri, String>>) {
         lifecycleScope.launch {
@@ -202,7 +216,6 @@ class MainActivity : AppCompatActivity() {
                 val cached = dbHelper.getCachedVideo(name, durationMs)
                 if (cached != null) {
                     cachedLoadedCount++
-                    // 기존 목록에 중복되지 않도록 교체 또는 추가
                     allVideoList.removeAll { it.name == name }
                     allVideoList.add(0, cached)
                 } else {
@@ -221,7 +234,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             // 2단계: 신규 영상에 대해서만 초반 10초 OCR 분석 수행
-            tvStatus.text = "💡 ${videos.size}개 중 ${cachedLoadedCount}개 기존 데이터 적용 완료! (신규 ${newVideosToAnalyze.size}개 초반 10초 분석 시작...)"
+            tvStatus.text = "💡 ${videos.size}개 중 ${cachedLoadedCount}개 기존 데이터 적용! (신규 ${newVideosToAnalyze.size}개 한글 전용 분석 중...)"
 
             for ((idx, triple) in newVideosToAnalyze.withIndex()) {
                 val (uri, name, _) = triple
@@ -241,8 +254,8 @@ class MainActivity : AppCompatActivity() {
             }
 
             progressBar.visibility = View.GONE
-            tvStatus.text = "🎉 분석 완료! 총 ${allVideoList.size}개 영상의 태그 갤러리가 준비되었습니다."
-            Toast.makeText(this@MainActivity, "모든 영상 태그 분석 완료!", Toast.LENGTH_SHORT).show()
+            tvStatus.text = "🎉 100% 한글 태그 생성 완료! 총 ${allVideoList.size}개 영상이 준비되었습니다."
+            Toast.makeText(this@MainActivity, "한글 태그 분석 완료!", Toast.LENGTH_SHORT).show()
         }
     }
 
