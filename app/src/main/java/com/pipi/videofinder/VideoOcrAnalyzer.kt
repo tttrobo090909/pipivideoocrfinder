@@ -1,4 +1,3 @@
-// com/pipi/videofinder/VideoOcrAnalyzer.kt
 package com.pipi.videofinder
 
 import android.content.Context
@@ -12,90 +11,93 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 
-data class VideoSearchResult(
-    val videoName: String,
-    val videoUri: Uri,
-    val timestampSeconds: Long,
-    val timeFormatted: String,
-    val recognizedText: String,
-    val thumbnailBitmap: Bitmap?
-)
-
 class VideoOcrAnalyzer(private val context: Context) {
 
-    // 오프라인 온디바이스 구글 ML Kit 한글 텍스트 인식기
+    // Google ML Kit Korean 온디바이스 텍스트 인식 엔진 (오프라인)
     private val recognizer = TextRecognition.getClient(
         KoreanTextRecognizerOptions.Builder().build()
     )
 
+    /**
+     * 동영상 초반 10초 이내(0~10초)에서 핵심 프레임을 추출해 Google ML Kit OCR로 글자를 읽고,
+     * 오타를 걸러낸 정제된 #태그 목록과 장면 정보를 반환합니다.
+     */
     suspend fun analyzeVideo(
-        videoUri: Uri,
-        videoName: String,
+        uri: Uri,
+        fileName: String,
         onProgress: (percent: Int, statusText: String) -> Unit
-    ): List<VideoSearchResult> = withContext(Dispatchers.IO) {
-        val results = mutableListOf<VideoSearchResult>()
+    ): VideoItem = withContext(Dispatchers.IO) {
         val retriever = MediaMetadataRetriever()
+        var thumbnailBitmap: Bitmap? = null
+        var durationMs = 0L
+        val detectedScenes = mutableListOf<SceneItem>()
+        val allRawTexts = mutableListOf<String>()
 
         try {
-            retriever.setDataSource(context, videoUri)
+            retriever.setDataSource(context, uri)
+
             val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-            val durationMs = durationStr?.toLongOrNull() ?: 10000L
-            val durationSec = durationMs / 1000
+            durationMs = durationStr?.toLongOrNull() ?: 0L
 
-            // 1. robo 님의 요청 반영: 영상 전체와 무관하게 처음 10초 이내만 분석!
-            val scanLimitSec = Math.min(10L, durationSec)
-
-            // 2. 10초 이내에서 2초 간격 (1초, 3초, 5초, 7초, 9초)
-            val timePoints = mutableListOf<Long>()
-            for (t in 1..scanLimitSec step 2) {
-                timePoints.add(t)
+            // 1초 시점 썸네일 추출 (갤러리 카드 표시용)
+            thumbnailBitmap = try {
+                retriever.getFrameAtTime(1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+            } catch (e: Exception) {
+                null
             }
-            if (timePoints.isEmpty()) timePoints.add(1L)
 
-            for ((index, sec) in timePoints.withIndex()) {
-                val progress = ((index + 1) * 100) / timePoints.size
-                onProgress(progress, "$videoName ($sec 초) 한글 분석 중...")
+            // 분석 구간: 영상 초반 0~10초 이내 (2초 간격 5개 핵심 프레임: 0s, 2s, 4s, 6s, 8s, 10s)
+            val maxSecondsToScan = minOf(10L, durationMs / 1000L)
+            val timestampsToScan = if (maxSecondsToScan <= 0L) {
+                listOf(0L)
+            } else {
+                (0L..maxSecondsToScan step 2L).toList()
+            }
 
-                val timeUs = sec * 1_000_000L
-                val frameBitmap = retriever.getFrameAtTime(
-                    timeUs,
-                    MediaMetadataRetriever.OPTION_CLOSEST_SYNC
-                ) ?: continue
+            for ((stepIndex, sec) in timestampsToScan.withIndex()) {
+                val progressPercent = ((stepIndex + 1) * 100) / timestampsToScan.size
+                withContext(Dispatchers.Main) {
+                    onProgress(progressPercent, "$fileName: 초반 10초 구간 분석 중 (${sec}초 시점)...")
+                }
 
-                // 3. 구글 ML Kit 온디바이스 한글 인식 (오프라인)
-                val inputImage = InputImage.fromBitmap(frameBitmap, 0)
-                try {
-                    val visionText = recognizer.process(inputImage).await()
-                    val text = visionText.text.trim()
-
-                    if (text.isNotEmpty()) {
-                        val min = sec / 60
-                        val s = sec % 60
-                        val formatted = String.format("%02d:%02d", min, s)
-
-                        results.add(
-                            VideoSearchResult(
-                                videoName = videoName,
-                                videoUri = videoUri,
-                                timestampSeconds = sec,
-                                timeFormatted = formatted,
-                                recognizedText = text,
-                                thumbnailBitmap = frameBitmap
-                            )
-                        )
-                    }
+                val frameBitmap = try {
+                    retriever.getFrameAtTime(sec * 1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
                 } catch (e: Exception) {
-                    e.printStackTrace()
+                    null
+                } ?: continue
+
+                // Google ML Kit 온디바이스 OCR 실행
+                val inputImage = InputImage.fromBitmap(frameBitmap, 0)
+                val visionText = recognizer.process(inputImage).await()
+                val text = visionText.text.trim()
+
+                if (text.isNotBlank()) {
+                    allRawTexts.add(text)
+                    detectedScenes.add(SceneItem(timestampSeconds = sec, text = text))
                 }
             }
+
         } catch (e: Exception) {
             e.printStackTrace()
         } finally {
             try {
                 retriever.release()
-            } catch (e: Exception) { }
+            } catch (e: Exception) {
+                // 무시
+            }
         }
 
-        results
+        // 오타와 노이즈를 필터링하여 의미 있는 #태그 목록 생성
+        val cleanTags = TagFilter.extractCleanTags(allRawTexts)
+
+        VideoItem(
+            uriString = uri.toString(),
+            name = fileName,
+            durationMs = durationMs,
+            tags = cleanTags,
+            scenes = detectedScenes,
+            isCached = false,
+            thumbnailBitmap = thumbnailBitmap
+        )
     }
 }

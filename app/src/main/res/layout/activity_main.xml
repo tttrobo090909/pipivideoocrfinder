@@ -1,132 +1,139 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#0F1411"
+    android:background="@color/background"
     android:padding="16dp">
 
-    <!-- Header -->
+    <!-- 상단 헤더 -->
     <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:layout_marginBottom="16dp">
-
-        <TextView
-            android:layout_width="38dp"
-            android:layout_height="38dp"
-            android:background="#22C55E"
-            android:text="ㅍ"
-            android:textColor="#052E16"
-            android:textSize="22sp"
-            android:textStyle="bold"
-            android:gravity="center" />
-
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_marginStart="12dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="피피비디오OCR파인더 (ML Kit)"
-                android:textColor="#F0FDF4"
-                android:textSize="17sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="오프라인 온디바이스 구글 AI 탑재"
-                android:textColor="#86EFAC"
-                android:textSize="11sp" />
-        </LinearLayout>
-    </LinearLayout>
-
-    <!-- File Select Button -->
-    <LinearLayout
-        android:id="@+id/btnSelectVideos"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:background="#18201A"
-        android:padding="16dp"
-        android:gravity="center">
+        android:paddingBottom="12dp">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="📂 동영상 파일 선택하기"
-            android:textColor="#F0FDF4"
-            android:textSize="15sp"
+            android:text="@string/app_name"
+            android:textColor="@color/on_surface"
+            android:textSize="22sp"
             android:textStyle="bold" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="스마트폰 저장소에서 영상들을 다중 선택하세요"
-            android:textColor="#94A3B8"
-            android:textSize="12sp"
-            android:layout_marginTop="4dp" />
+            android:text="⚡ 0~10초 초고속 OCR · 스마트 태그 갤러리"
+            android:textColor="@color/on_surface_secondary"
+            android:textSize="13sp"
+            android:layout_marginTop="2dp" />
     </LinearLayout>
 
-    <Button
-        android:id="@+id/btnStartAnalyze"
+    <!-- 폴더 / 파일 선택 버튼 행 -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="⚡ ML Kit 분석 시작하기"
-        android:backgroundTint="#22C55E"
-        android:textColor="#052E16"
-        android:textStyle="bold"
-        android:layout_marginTop="10dp"
-        android:enabled="false" />
+        android:orientation="horizontal"
+        android:layout_marginBottom="12dp">
 
-    <ProgressBar
-        android:id="@+id/progressBar"
-        style="?android:attr/progressBarStyleHorizontal"
+        <Button
+            android:id="@+id/btnSelectFolder"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:text="📁 폴더 선택 (전체)"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="@color/primary"
+            android:layout_marginEnd="6dp" />
+
+        <Button
+            android:id="@+id/btnSelectVideos"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:text="🎬 동영상 직접 선택"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="@color/primary_variant"
+            android:layout_marginStart="6dp" />
+    </LinearLayout>
+
+    <!-- 상태 및 진행 바 -->
+    <LinearLayout
+        android:id="@+id/layoutStatus"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:visibility="gone" />
+        android:orientation="vertical"
+        android:background="@color/surface"
+        android:padding="10dp"
+        android:layout_marginBottom="12dp">
 
-    <TextView
-        android:id="@+id/tvProgress"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:textColor="#86EFAC"
-        android:textSize="12sp"
-        android:gravity="end"
-        android:visibility="gone" />
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="💡 폴더나 영상을 선택해 태그를 추출해 보세요."
+            android:textColor="@color/secondary"
+            android:textSize="13sp" />
 
-    <!-- Search Input -->
+        <ProgressBar
+            android:id="@+id/progressBar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <!-- 검색창 -->
     <EditText
         android:id="@+id/etSearch"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="🔍 찾고 싶은 한글 자막 입력..."
-        android:textColorHint="#94A3B8"
-        android:textColor="#F0FDF4"
-        android:background="#212C24"
-        android:padding="14dp"
-        android:layout_marginTop="16dp" />
+        android:layout_height="48dp"
+        android:background="@color/surface_variant"
+        android:hint="🔍 파일명 또는 #태그 실시간 검색..."
+        android:textColorHint="@color/on_surface_secondary"
+        android:textColor="@color/on_surface"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:singleLine="true"
+        android:imeOptions="actionSearch"
+        android:layout_marginBottom="10dp" />
 
+    <!-- 태그 칩 가로 스크롤 -->
+    <HorizontalScrollView
+        android:id="@+id/scrollTags"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:scrollbars="none"
+        android:layout_marginBottom="12dp">
+
+        <LinearLayout
+            android:id="@+id/layoutTagChips"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal" />
+    </HorizontalScrollView>
+
+    <!-- 갤러리 목록 헤더 -->
     <TextView
         android:id="@+id/tvResultCount"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textColor="#86EFAC"
-        android:textSize="13sp"
-        android:layout_marginTop="12dp" />
+        android:text="갤러리 영상 목록 (총 0개)"
+        android:textColor="@color/on_surface_secondary"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp" />
 
+    <!-- 갤러리 리스트 -->
     <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rvResults"
+        android:id="@+id/rvGallery"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginTop="8dp" />
+        android:clipToPadding="false"
+        tools:listitem="@layout/item_video_gallery" />
 
 </LinearLayout>
