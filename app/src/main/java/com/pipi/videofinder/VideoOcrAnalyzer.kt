@@ -39,11 +39,17 @@ class VideoOcrAnalyzer(private val context: Context) {
             val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
             durationMs = durationStr?.toLongOrNull() ?: 0L
 
-            // 1초 시점 썸네일 추출 (갤러리 카드 표시용)
+            // 0초 첫 프레임 썸네일 추출 및 디스크 파일 영구 저장
             thumbnailBitmap = try {
-                retriever.getFrameAtTime(1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                retriever.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                    ?: retriever.getFrameAtTime(1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                    ?: retriever.frameAtTime
             } catch (e: Exception) {
                 null
+            }
+
+            if (thumbnailBitmap != null) {
+                ThumbnailHelper.saveThumbnailToDisk(context, fileName, durationMs, thumbnailBitmap)
             }
 
             // 분석 구간: 영상 초반 0~10초 이내 (2초 간격 5개 핵심 프레임: 0s, 2s, 4s, 6s, 8s, 10s)

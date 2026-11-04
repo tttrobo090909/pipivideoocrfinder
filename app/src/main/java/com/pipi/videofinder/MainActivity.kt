@@ -4,9 +4,11 @@ import android.app.AlertDialog
 import android.app.Dialog
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.database.Cursor
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.OpenableColumns
 import android.text.Editable
@@ -17,6 +19,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
@@ -46,6 +49,11 @@ class MainActivity : AppCompatActivity() {
 
     private var isAnalyzing = false
 
+    // 권한 요청 런처
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { _ -> }
+
     // 1. 폴더 선택 런처 (지정 폴더 내 모든 비디오 탐색)
     private val selectFolderLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
@@ -63,11 +71,21 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // 2. 동영상 직접 선택 런처 (다중 비디오 파일 선택)
+    // 2. 동영상 직접 선택 런처 (다중 비디오 파일 선택 - 영구 권한 획득)
     private val selectVideosLauncher = registerForActivityResult(
-        ActivityResultContracts.GetMultipleContents()
+        ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
         if (uris.isNotEmpty()) {
+            for (uri in uris) {
+                try {
+                    contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (e: Exception) {
+                    // 무시
+                }
+            }
             loadVideosToPending(uris)
         }
     }
@@ -102,9 +120,22 @@ class MainActivity : AppCompatActivity() {
 
         initViews()
         setupListeners()
+        checkAndRequestStoragePermission()
 
         // 앱 시작 시 이전에 분석해 둔 전체 태그 DB 목록 복원
         loadExistingCachedVideos()
+    }
+
+    private fun checkAndRequestStoragePermission() {
+        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            android.Manifest.permission.READ_MEDIA_VIDEO
+        } else {
+            android.Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+
+        if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissionLauncher.launch(permission)
+        }
     }
 
     private fun initViews() {
@@ -184,6 +215,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openSamsungGalleryPicker() {
+        checkAndRequestStoragePermission()
         val intent = Intent(Intent.ACTION_PICK).apply {
             setDataAndType(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, "video/*")
             putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
@@ -192,7 +224,7 @@ class MainActivity : AppCompatActivity() {
         try {
             samsungGalleryLauncher.launch(intent)
         } catch (e: Exception) {
-            selectVideosLauncher.launch("video/*")
+            selectVideosLauncher.launch(arrayOf("video/*"))
         }
     }
 
@@ -275,8 +307,11 @@ class MainActivity : AppCompatActivity() {
             val durationMs = queryVideoDuration(uri)
             val cached = dbHelper.getCachedVideo(name, durationMs)
             if (cached != null) {
+                // 최신 유효 URI로 갱신하여 영구 저장
+                val updatedCached = cached.copy(uriString = uri.toString())
+                dbHelper.saveVideo(updatedCached)
                 allVideoList.removeAll { it.name == name }
-                allVideoList.add(cached)
+                allVideoList.add(updatedCached)
             } else {
                 allVideoList.removeAll { it.name == name }
                 allVideoList.add(
@@ -512,6 +547,11 @@ class MainActivity : AppCompatActivity() {
 
         videoView.setOnPreparedListener {
             videoView.start()
+        }
+
+        videoView.setOnErrorListener { _, _, _ ->
+            Toast.makeText(this, "동영상 재생 오류가 발생했습니다. '삼성 동영상 앱으로 열기'를 이용해 보세요.", Toast.LENGTH_SHORT).show()
+            true
         }
 
         // 삼성 동영상 플레이어로 바로 열기 버튼

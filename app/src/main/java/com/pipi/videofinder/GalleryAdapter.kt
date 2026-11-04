@@ -1,7 +1,7 @@
 package com.pipi.videofinder
 
 import android.content.Context
-import android.media.MediaMetadataRetriever
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.view.LayoutInflater
 import android.view.View
@@ -74,11 +74,23 @@ class GalleryAdapter(
         fun bind(item: VideoItem) {
             tvDuration.text = formatDuration(item.durationMs)
 
-            // 순수 썸네일 로드
+            // 1. 메모리에 비트맵이 이미 있으면 즉시 표시
             if (item.thumbnailBitmap != null) {
                 ivThumbnail.setImageBitmap(item.thumbnailBitmap)
             } else {
-                loadThumbnailAsync(item)
+                // 2. 앱 전용 디스크에 저장된 썸네일 파일 확인 (앱 껐다 켜도 1ms 즉시 로드)
+                val thumbFile = ThumbnailHelper.getThumbnailFile(context, item.name, item.durationMs)
+                if (thumbFile.exists()) {
+                    val bmp = BitmapFactory.decodeFile(thumbFile.absolutePath)
+                    if (bmp != null) {
+                        item.thumbnailBitmap = bmp
+                        ivThumbnail.setImageBitmap(bmp)
+                    } else {
+                        loadThumbnailAsync(item)
+                    }
+                } else {
+                    loadThumbnailAsync(item)
+                }
             }
 
             itemView.setOnClickListener {
@@ -89,17 +101,15 @@ class GalleryAdapter(
         private fun loadThumbnailAsync(item: VideoItem) {
             ivThumbnail.setImageDrawable(null)
             Thread {
-                try {
-                    val retriever = MediaMetadataRetriever()
-                    retriever.setDataSource(context, Uri.parse(item.uriString))
-                    val bmp = retriever.getFrameAtTime(1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                    retriever.release()
-                    if (bmp != null) {
-                        item.thumbnailBitmap = bmp
-                        itemView.post { ivThumbnail.setImageBitmap(bmp) }
-                    }
-                } catch (e: Exception) {
-                    // 무시
+                val bmp = ThumbnailHelper.loadOrExtractThumbnail(
+                    context,
+                    Uri.parse(item.uriString),
+                    item.name,
+                    item.durationMs
+                )
+                if (bmp != null) {
+                    item.thumbnailBitmap = bmp
+                    itemView.post { ivThumbnail.setImageBitmap(bmp) }
                 }
             }.start()
         }
