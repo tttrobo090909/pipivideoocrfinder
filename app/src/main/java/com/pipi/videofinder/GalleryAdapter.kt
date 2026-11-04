@@ -6,90 +6,109 @@ import android.net.Uri
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
-import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import java.util.Locale
 
 class GalleryAdapter(
     private val context: Context,
-    private val onPlayInApp: (VideoItem) -> Unit,
-    private val onPlaySamsung: (VideoItem) -> Unit,
+    private val onItemClicked: (VideoItem) -> Unit,
     private val onTagClicked: (String) -> Unit
-) : RecyclerView.Adapter<GalleryAdapter.ViewHolder>() {
+) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
-    private val items = mutableListOf<VideoItem>()
+    companion object {
+        const val TYPE_HEADER = 0
+        const val TYPE_VIDEO = 1
+    }
 
-    fun submitList(newItems: List<VideoItem>) {
+    private val items = mutableListOf<GalleryGridItem>()
+
+    fun submitItems(newItems: List<GalleryGridItem>) {
         items.clear()
         items.addAll(newItems)
         notifyDataSetChanged()
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_video_gallery, parent, false)
-        return ViewHolder(view)
+    fun isHeader(position: Int): Boolean {
+        return position in items.indices && items[position] is GalleryGridItem.Header
     }
 
-    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        holder.bind(items[position])
+    override fun getItemViewType(position: Int): Int {
+        return when (items[position]) {
+            is GalleryGridItem.Header -> TYPE_HEADER
+            is GalleryGridItem.Video -> TYPE_VIDEO
+        }
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        val inflater = LayoutInflater.from(parent.context)
+        return if (viewType == TYPE_HEADER) {
+            val view = inflater.inflate(R.layout.item_gallery_header, parent, false)
+            HeaderViewHolder(view)
+        } else {
+            val view = inflater.inflate(R.layout.item_gallery_video_grid, parent, false)
+            VideoViewHolder(view)
+        }
+    }
+
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+        when (val item = items[position]) {
+            is GalleryGridItem.Header -> (holder as HeaderViewHolder).bind(item)
+            is GalleryGridItem.Video -> (holder as VideoViewHolder).bind(item.videoItem)
+        }
     }
 
     override fun getItemCount(): Int = items.size
 
-    inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        private val ivThumbnail: ImageView = itemView.findViewById(R.id.ivThumbnail)
-        private val tvDuration: TextView = itemView.findViewById(R.id.tvDuration)
-        private val tvFileName: TextView = itemView.findViewById(R.id.tvFileName)
-        private val tvBadge: TextView = itemView.findViewById(R.id.tvBadge)
-        private val tvTags: TextView = itemView.findViewById(R.id.tvTags)
-        private val btnPlayInApp: Button = itemView.findViewById(R.id.btnPlayInApp)
-        private val btnPlaySamsung: Button = itemView.findViewById(R.id.btnPlaySamsung)
+    inner class HeaderViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val tvHeaderDate: TextView = itemView.findViewById(R.id.tvHeaderDate)
+        fun bind(header: GalleryGridItem.Header) {
+            tvHeaderDate.text = header.dateTitle
+        }
+    }
+
+    inner class VideoViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val ivThumbnail: ImageView = itemView.findViewById(R.id.ivGridThumbnail)
+        private val tvDuration: TextView = itemView.findViewById(R.id.tvGridDuration)
+        private val tvStatus: TextView = itemView.findViewById(R.id.tvGridStatus)
+        private val tvTags: TextView = itemView.findViewById(R.id.tvGridTags)
 
         fun bind(item: VideoItem) {
-            tvFileName.text = item.name
             tvDuration.text = formatDuration(item.durationMs)
 
-            // 썸네일 표시
+            // 썸네일 로드
             if (item.thumbnailBitmap != null) {
                 ivThumbnail.setImageBitmap(item.thumbnailBitmap)
             } else {
-                // 비동기로 썸네일 로드 시도
                 loadThumbnailAsync(item)
             }
 
-            // 기존 분석 캐시 여부 배지
+            // 분석 상태 뱃지
             if (item.isCached) {
-                tvBadge.text = "✅ 기존 분석 완료 (${item.tags.size}개 태그 보존)"
-                tvBadge.setBackgroundColor(ContextCompat.getColor(context, R.color.badge_cached))
-                tvBadge.setTextColor(ContextCompat.getColor(context, R.color.badge_cached_text))
+                tvStatus.text = "✓"
+                tvStatus.setTextColor(0xFF81C784.toInt())
             } else {
-                tvBadge.text = "⚡ 신규 분석 완료 (${item.tags.size}개 태그 생성)"
-                tvBadge.setBackgroundColor(ContextCompat.getColor(context, R.color.badge_new))
-                tvBadge.setTextColor(ContextCompat.getColor(context, R.color.badge_new_text))
+                tvStatus.text = "대기"
+                tvStatus.setTextColor(0xFFFFB74D.toInt())
             }
 
-            // 태그 표시
+            // 태그 요약 (상위 1~2개 표시)
             if (item.tags.isNotEmpty()) {
                 tvTags.text = item.tags.joinToString(" ")
-                tvTags.visibility = View.VISIBLE
             } else {
-                tvTags.text = "#태그없음"
-                tvTags.visibility = View.VISIBLE
+                tvTags.text = "#분석대기"
             }
 
-            // 태그 클릭 시 검색창 자동 입력
+            itemView.setOnClickListener {
+                onItemClicked(item)
+            }
+
             tvTags.setOnClickListener {
                 if (item.tags.isNotEmpty()) {
                     onTagClicked(item.tags.first().removePrefix("#"))
                 }
             }
-
-            // 버튼 동작 연결
-            btnPlayInApp.setOnClickListener { onPlayInApp(item) }
-            btnPlaySamsung.setOnClickListener { onPlaySamsung(item) }
         }
 
         private fun loadThumbnailAsync(item: VideoItem) {

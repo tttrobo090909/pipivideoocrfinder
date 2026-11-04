@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/tvHeaderDate"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingStart="6dp"
+    android:paddingEnd="6dp"
+    android:paddingTop="16dp"
+    android:paddingBottom="8dp"
+    android:text="10월 31일"
+    android:textColor="@color/on_surface"
+    android:textSize="17sp"
+    android:textStyle="bold" />

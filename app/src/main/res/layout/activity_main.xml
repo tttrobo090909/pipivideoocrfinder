@@ -5,145 +5,128 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@color/background"
-    android:padding="16dp">
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp"
+    android:paddingTop="14dp"
+    android:paddingBottom="12dp">
 
-    <!-- 상단 헤더 -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingBottom="12dp">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/app_name"
-            android:textColor="@color/on_surface"
-            android:textSize="22sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="🇰🇷 100% 한글 전용 OCR · 0~10초 초고속 태그 갤러리"
-            android:textColor="@color/secondary"
-            android:textSize="13sp"
-            android:layout_marginTop="2dp" />
-    </LinearLayout>
-
-    <!-- 폴더 / 파일 선택 버튼 행 -->
+    <!-- 최상단 헤더: 제목 + 진척도 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_marginBottom="12dp">
+        android:gravity="center_vertical"
+        android:paddingBottom="8dp">
 
-        <Button
-            android:id="@+id/btnSelectFolder"
+        <TextView
             android:layout_width="0dp"
-            android:layout_height="48dp"
-            android:layout_weight="1"
-            android:text="📁 폴더 선택 (전체)"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="@color/primary"
-            android:layout_marginEnd="6dp" />
-
-        <Button
-            android:id="@+id/btnSelectVideos"
-            android:layout_width="0dp"
-            android:layout_height="48dp"
-            android:layout_weight="1"
-            android:text="🎬 동영상 직접 선택"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="@color/primary_variant"
-            android:layout_marginStart="6dp" />
-    </LinearLayout>
-
-    <!-- 상태 및 진행 바 + 재분석 버튼 -->
-    <LinearLayout
-        android:id="@+id/layoutStatus"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:background="@color/surface"
-        android:padding="10dp"
-        android:layout_marginBottom="12dp">
-
-        <LinearLayout
-            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
+            android:layout_weight="1"
+            android:text="[비디오OCR by 피피]"
+            android:textColor="@color/on_surface"
+            android:textSize="20sp"
+            android:textStyle="bold" />
 
-            <TextView
-                android:id="@+id/tvStatus"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="💡 폴더나 영상을 선택해 태그를 추출해 보세요."
-                android:textColor="@color/secondary"
-                android:textSize="13sp" />
-
-            <Button
-                android:id="@+id/btnReanalyzeKorean"
-                android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:text="🔄 한글 재분석"
-                android:textSize="11sp"
-                android:textColor="#FFFFFF"
-                android:backgroundTint="@color/primary"
-                android:layout_marginStart="8dp" />
-        </LinearLayout>
-
-        <ProgressBar
-            android:id="@+id/progressBar"
-            style="?android:attr/progressBarStyleHorizontal"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:visibility="gone" />
-    </LinearLayout>
-
-    <!-- 검색창 -->
-    <EditText
-        android:id="@+id/etSearch"
-        android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:background="@color/surface_variant"
-        android:hint="🔍 파일명 또는 #한글태그 실시간 검색..."
-        android:textColorHint="@color/on_surface_secondary"
-        android:textColor="@color/on_surface"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:singleLine="true"
-        android:imeOptions="actionSearch"
-        android:layout_marginBottom="10dp" />
-
-    <!-- 태그 칩 가로 스크롤 -->
-    <HorizontalScrollView
-        android:id="@+id/scrollTags"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:scrollbars="none"
-        android:layout_marginBottom="12dp">
-
-        <LinearLayout
-            android:id="@+id/layoutTagChips"
+        <TextView
+            android:id="@+id/tvProgress"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="horizontal" />
-    </HorizontalScrollView>
+            android:text=""
+            android:textColor="@color/primary"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+    </LinearLayout>
 
-    <!-- 갤러리 목록 헤더 -->
-    <TextView
-        android:id="@+id/tvResultCount"
-        android:layout_width="wrap_content"
+    <!-- 초슬림 진행 바 (분석 중에만 표시) -->
+    <ProgressBar
+        android:id="@+id/progressBar"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:layout_marginBottom="10dp"
+        android:progressTint="@color/primary"
+        android:visibility="gone" />
+
+    <!-- 3버튼 영역: 파일 / 변환 / 검색 -->
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="갤러리 영상 목록 (총 0개)"
-        android:textColor="@color/on_surface_secondary"
-        android:textSize="14sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="8dp" />
+        android:orientation="horizontal"
+        android:layout_marginBottom="10dp">
+
+        <Button
+            android:id="@+id/btnFile"
+            android:layout_width="0dp"
+            android:layout_height="46dp"
+            android:layout_weight="1"
+            android:text="📁 파일"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="@color/primary"
+            android:layout_marginEnd="4dp" />
+
+        <Button
+            android:id="@+id/btnConvert"
+            android:layout_width="0dp"
+            android:layout_height="46dp"
+            android:layout_weight="1"
+            android:text="⚡ 변환"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="@color/primary_variant"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp" />
+
+        <Button
+            android:id="@+id/btnSearch"
+            android:layout_width="0dp"
+            android:layout_height="46dp"
+            android:layout_weight="1"
+            android:text="🔍 검색"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="@color/surface_variant"
+            android:layout_marginStart="4dp" />
+    </LinearLayout>
+
+    <!-- 접이식 검색창 (검색 버튼 누르면 표시) -->
+    <LinearLayout
+        android:id="@+id/layoutSearchBox"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@color/surface_variant"
+        android:paddingStart="12dp"
+        android:paddingEnd="8dp"
+        android:layout_marginBottom="10dp"
+        android:visibility="gone">
+
+        <EditText
+            android:id="@+id/etSearch"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_weight="1"
+            android:background="@null"
+            android:hint="파일명 또는 #태그 실시간 검색..."
+            android:textColorHint="@color/on_surface_secondary"
+            android:textColor="@color/on_surface"
+            android:textSize="14sp"
+            android:singleLine="true"
+            android:imeOptions="actionSearch" />
+
+        <ImageButton
+            android:id="@+id/btnCloseSearch"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:tint="@color/on_surface_secondary"
+            android:contentDescription="검색창 닫기" />
+    </LinearLayout>
 
     <!-- 갤러리 리스트 -->
     <androidx.recyclerview.widget.RecyclerView

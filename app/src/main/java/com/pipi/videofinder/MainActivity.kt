@@ -1,6 +1,8 @@
 package com.pipi.videofinder
 
+import android.app.AlertDialog
 import android.app.Dialog
+import android.content.Context
 import android.content.Intent
 import android.database.Cursor
 import android.media.MediaMetadataRetriever
@@ -10,17 +12,19 @@ import android.provider.OpenableColumns
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
-import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.*
 
 class MainActivity : AppCompatActivity() {
 
@@ -30,15 +34,18 @@ class MainActivity : AppCompatActivity() {
     private val allVideoList = mutableListOf<VideoItem>()
     private lateinit var galleryAdapter: GalleryAdapter
 
-    private lateinit var btnSelectFolder: Button
-    private lateinit var btnSelectVideos: Button
-    private lateinit var btnReanalyzeKorean: Button
-    private lateinit var tvStatus: TextView
+    private lateinit var tvProgress: TextView
     private lateinit var progressBar: ProgressBar
+    private lateinit var btnFile: Button
+    private lateinit var btnConvert: Button
+    private lateinit var btnSearch: Button
+
+    private lateinit var layoutSearchBox: LinearLayout
     private lateinit var etSearch: EditText
-    private lateinit var layoutTagChips: LinearLayout
-    private lateinit var tvResultCount: TextView
+    private lateinit var btnCloseSearch: ImageButton
     private lateinit var rvGallery: RecyclerView
+
+    private var isAnalyzing = false
 
     // 1. 폴더 선택 런처 (지정 폴더 내 모든 비디오 탐색)
     private val selectFolderLauncher = registerForActivityResult(
@@ -62,7 +69,28 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.GetMultipleContents()
     ) { uris ->
         if (uris.isNotEmpty()) {
-            processVideoUris(uris)
+            loadVideosToPending(uris)
+        }
+    }
+
+    // 3. 삼성 갤러리 인텐트 런처
+    private val samsungGalleryLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val uris = mutableListOf<Uri>()
+        val data = result.data
+        if (data != null) {
+            val clipData = data.clipData
+            if (clipData != null) {
+                for (i in 0 until clipData.itemCount) {
+                    uris.add(clipData.getItemAt(i).uri)
+                }
+            } else if (data.data != null) {
+                uris.add(data.data!!)
+            }
+        }
+        if (uris.isNotEmpty()) {
+            loadVideosToPending(uris)
         }
     }
 
@@ -76,54 +104,59 @@ class MainActivity : AppCompatActivity() {
         initViews()
         setupListeners()
 
-        // 앱 시작 시 이전에 분석해 둔 전체 태그 DB 목록 자동 복원
+        // 앱 시작 시 이전에 분석해 둔 전체 태그 DB 목록 복원
         loadExistingCachedVideos()
     }
 
     private fun initViews() {
-        btnSelectFolder = findViewById(R.id.btnSelectFolder)
-        btnSelectVideos = findViewById(R.id.btnSelectVideos)
-        btnReanalyzeKorean = findViewById(R.id.btnReanalyzeKorean)
-        tvStatus = findViewById(R.id.tvStatus)
+        tvProgress = findViewById(R.id.tvProgress)
         progressBar = findViewById(R.id.progressBar)
+        btnFile = findViewById(R.id.btnFile)
+        btnConvert = findViewById(R.id.btnConvert)
+        btnSearch = findViewById(R.id.btnSearch)
+
+        layoutSearchBox = findViewById(R.id.layoutSearchBox)
         etSearch = findViewById(R.id.etSearch)
-        layoutTagChips = findViewById(R.id.layoutTagChips)
-        tvResultCount = findViewById(R.id.tvResultCount)
+        btnCloseSearch = findViewById(R.id.btnCloseSearch)
         rvGallery = findViewById(R.id.rvGallery)
 
         galleryAdapter = GalleryAdapter(
             context = this,
-            onPlayInApp = { videoItem -> showInAppPlayerDialog(videoItem) },
-            onPlaySamsung = { videoItem -> openSamsungVideoPlayer(videoItem) },
-            onTagClicked = { tagText ->
-                etSearch.setText(tagText)
-                etSearch.setSelection(tagText.length)
-            }
+            onItemClicked = { videoItem -> showVideoDetailDialog(videoItem) },
+            onTagClicked = { tagText -> openSearchWithText(tagText) }
         )
 
-        rvGallery.layoutManager = LinearLayoutManager(this)
+        // 삼성 갤러리 스타일의 3열 그리드 레이아웃 설정
+        val gridLayoutManager = GridLayoutManager(this, 3)
+        gridLayoutManager.spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
+            override fun getSpanSize(position: Int): Int {
+                return if (galleryAdapter.isHeader(position)) 3 else 1
+            }
+        }
+
+        rvGallery.layoutManager = gridLayoutManager
         rvGallery.adapter = galleryAdapter
     }
 
     private fun setupListeners() {
-        btnSelectFolder.setOnClickListener {
-            selectFolderLauncher.launch(null)
+        // [파일] 버튼: 폴더 전체 또는 삼성 갤러리 선택
+        btnFile.setOnClickListener {
+            showFileSourceDialog()
         }
 
-        btnSelectVideos.setOnClickListener {
-            selectVideosLauncher.launch("video/*")
+        // [변환] 버튼: 대기 영상들의 초반 10초 OCR 분석 실행
+        btnConvert.setOnClickListener {
+            startConversionProcess()
         }
 
-        // 한글 전용 전체 재분석 버튼
-        btnReanalyzeKorean.setOnClickListener {
-            if (allVideoList.isEmpty()) {
-                Toast.makeText(this, "먼저 영상을 선택해 주세요.", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            val targetVideos = allVideoList.map { Pair(Uri.parse(it.uriString), it.name) }
-            dbHelper.clearAll()
-            allVideoList.clear()
-            processVideoList(targetVideos)
+        // [검색] 버튼: 검색창 토글
+        btnSearch.setOnClickListener {
+            toggleSearchBox()
+        }
+
+        // 검색창 닫기 버튼
+        btnCloseSearch.setOnClickListener {
+            closeSearchBox()
         }
 
         etSearch.addTextChangedListener(object : TextWatcher {
@@ -136,30 +169,79 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * 앱 실행 시 기존에 분석하여 저장해 둔 태그 DB 목록을 즉시 갤러리에 불러옵니다.
+     * [파일] 버튼 클릭 시 폴더 선택과 삼성 갤러리 선택 제공
+     */
+    private fun showFileSourceDialog() {
+        val options = arrayOf("📁 폴더 전체 불러오기 (한 번에 일괄 등록)", "🎬 삼성 갤러리에서 동영상 선택")
+        AlertDialog.Builder(this)
+            .setTitle("동영상 불러오기")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> selectFolderLauncher.launch(null)
+                    1 -> openSamsungGalleryPicker()
+                }
+            }
+            .setNegativeButton("취소", null)
+            .show()
+    }
+
+    private fun openSamsungGalleryPicker() {
+        val intent = Intent(Intent.ACTION_PICK).apply {
+            setDataAndType(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, "video/*")
+            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            setPackage("com.sec.android.gallery3d")
+        }
+        try {
+            samsungGalleryLauncher.launch(intent)
+        } catch (e: Exception) {
+            selectVideosLauncher.launch("video/*")
+        }
+    }
+
+    private fun toggleSearchBox() {
+        if (layoutSearchBox.visibility == View.VISIBLE) {
+            closeSearchBox()
+        } else {
+            layoutSearchBox.visibility = View.VISIBLE
+            etSearch.requestFocus()
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+            imm?.showSoftInput(etSearch, InputMethodManager.SHOW_IMPLICIT)
+        }
+    }
+
+    private fun closeSearchBox() {
+        etSearch.setText("")
+        layoutSearchBox.visibility = View.GONE
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+        imm?.hideSoftInputFromWindow(etSearch.windowToken, 0)
+    }
+
+    private fun openSearchWithText(tagText: String) {
+        layoutSearchBox.visibility = View.VISIBLE
+        etSearch.setText(tagText)
+        etSearch.setSelection(tagText.length)
+        etSearch.requestFocus()
+    }
+
+    /**
+     * 앱 시작 시 이전에 분석하여 저장해 둔 태그 DB 목록을 즉시 복원합니다.
      */
     private fun loadExistingCachedVideos() {
         val cached = dbHelper.getAllCachedVideos()
         if (cached.isNotEmpty()) {
             allVideoList.clear()
             allVideoList.addAll(cached)
-            tvStatus.text = "💡 기존 태그 DB에서 ${cached.size}개 영상의 태그를 복원했습니다."
+            tvProgress.text = "[완료 ${cached.size}/${cached.size} (100%)]"
             filterGallery(etSearch.text.toString())
-            refreshTagChips()
         }
     }
 
     /**
-     * 폴더 URI로부터 하위의 모든 비디오 파일을 탐색합니다.
+     * 폴더 URI로부터 하위의 모든 비디오 파일을 대기 목록으로 탐색하여 등록합니다.
+     * 바로 분석하지 않고 대기 상태로 등록합니다.
      */
     private fun scanFolderUri(treeUri: Uri) {
         lifecycleScope.launch(Dispatchers.IO) {
-            withContext(Dispatchers.Main) {
-                progressBar.visibility = View.VISIBLE
-                progressBar.isIndeterminate = true
-                tvStatus.text = "📁 폴더 내 동영상 파일을 검색하는 중..."
-            }
-
             val docFile = DocumentFile.fromTreeUri(this@MainActivity, treeUri)
             val foundUris = mutableListOf<Pair<Uri, String>>()
 
@@ -171,96 +253,139 @@ class MainActivity : AppCompatActivity() {
             }
 
             withContext(Dispatchers.Main) {
-                progressBar.isIndeterminate = false
                 if (foundUris.isEmpty()) {
-                    progressBar.visibility = View.GONE
-                    tvStatus.text = "⚠️ 선택한 폴더에 동영상 파일이 없습니다."
-                    Toast.makeText(this@MainActivity, "폴더에 동영상이 없습니다.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "선택한 폴더에 동영상이 없습니다.", Toast.LENGTH_SHORT).show()
                 } else {
-                    processVideoList(foundUris)
+                    addVideosToGallery(foundUris)
                 }
             }
         }
     }
 
-    private fun isVideoFile(file: DocumentFile): Boolean {
-        val type = file.type ?: ""
-        val name = file.name?.lowercase() ?: ""
-        return type.startsWith("video/") ||
-                name.endsWith(".mp4") || name.endsWith(".mkv") ||
-                name.endsWith(".mov") || name.endsWith(".avi") ||
-                name.endsWith(".webm")
-    }
-
-    private fun processVideoUris(uris: List<Uri>) {
+    private fun loadVideosToPending(uris: List<Uri>) {
         val list = uris.map { uri ->
             Pair(uri, queryFileName(uri))
         }
-        processVideoList(list)
+        addVideosToGallery(list)
     }
 
     /**
-     * 선택된 비디오 목록에 대해:
-     * 1) 이미 분석된 태그 DB가 있는지 0.01초 만에 확인하여 즉시 재사용
-     * 2) 새로운 비디오만 초반 10초 OCR 분석 수행 (100% 한글 전용 필터 적용)
+     * 선택된 비디오들을 목록에 등록합니다 (바로 분석하지 않고 대기 상태로 등록!)
      */
-    private fun processVideoList(videos: List<Pair<Uri, String>>) {
-        lifecycleScope.launch {
-            progressBar.visibility = View.VISIBLE
-            var cachedLoadedCount = 0
-            val newVideosToAnalyze = mutableListOf<Triple<Uri, String, Long>>()
-
-            // 1단계: 기존 태그 DB 캐시 확인
-            for ((uri, name) in videos) {
-                val durationMs = queryVideoDuration(uri)
-                val cached = dbHelper.getCachedVideo(name, durationMs)
-                if (cached != null) {
-                    cachedLoadedCount++
-                    allVideoList.removeAll { it.name == name }
-                    allVideoList.add(0, cached)
-                } else {
-                    newVideosToAnalyze.add(Triple(uri, name, durationMs))
-                }
-            }
-
-            filterGallery(etSearch.text.toString())
-            refreshTagChips()
-
-            if (newVideosToAnalyze.isEmpty()) {
-                progressBar.visibility = View.GONE
-                tvStatus.text = "✅ 선택한 ${videos.size}개 영상 모두 기존 태그 DB에서 즉시 로드되었습니다! (새로 분석할 필요 없음)"
-                Toast.makeText(this@MainActivity, "${cachedLoadedCount}개 영상 기존 태그 즉시 적용 완료", Toast.LENGTH_SHORT).show()
-                return@launch
-            }
-
-            // 2단계: 신규 영상에 대해서만 초반 10초 OCR 분석 수행
-            tvStatus.text = "💡 ${videos.size}개 중 ${cachedLoadedCount}개 기존 데이터 적용! (신규 ${newVideosToAnalyze.size}개 한글 전용 분석 중...)"
-
-            for ((idx, triple) in newVideosToAnalyze.withIndex()) {
-                val (uri, name, _) = triple
-                val videoItem = analyzer.analyzeVideo(uri, name) { pct, statusText ->
-                    progressBar.progress = pct
-                    tvStatus.text = "[${idx + 1}/${newVideosToAnalyze.size}] $statusText"
-                }
-
-                // 분석 완료 즉시 DB에 영구 저장
-                dbHelper.saveVideo(videoItem)
-
+    private fun addVideosToGallery(videos: List<Pair<Uri, String>>) {
+        for ((uri, name) in videos) {
+            val durationMs = queryVideoDuration(uri)
+            val cached = dbHelper.getCachedVideo(name, durationMs)
+            if (cached != null) {
                 allVideoList.removeAll { it.name == name }
-                allVideoList.add(0, videoItem)
+                allVideoList.add(cached)
+            } else {
+                allVideoList.removeAll { it.name == name }
+                allVideoList.add(
+                    VideoItem(
+                        uriString = uri.toString(),
+                        name = name,
+                        durationMs = durationMs,
+                        tags = listOf("#분석대기"),
+                        scenes = emptyList(),
+                        isCached = false
+                    )
+                )
+            }
+        }
+
+        updateProgressHeader()
+        filterGallery(etSearch.text.toString())
+
+        Toast.makeText(this, "${videos.size}개 영상 등록 완료! '변환' 버튼을 누르면 분석이 시작됩니다.", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun updateProgressHeader() {
+        val total = allVideoList.size
+        if (total == 0) {
+            tvProgress.text = ""
+            return
+        }
+        val analyzed = allVideoList.count { it.isCached }
+        val pct = (analyzed * 100) / total
+        tvProgress.text = "[$analyzed/$total ($pct%)]"
+    }
+
+    /**
+     * [변환] 버튼 클릭 시: 미분석 영상을 순차적으로 초반 10초 OCR 분석 수행
+     */
+    private fun startConversionProcess() {
+        if (isAnalyzing) {
+            Toast.makeText(this, "이미 변환이 진행 중입니다.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (allVideoList.isEmpty()) {
+            Toast.makeText(this, "먼저 '파일' 버튼을 눌러 영상을 불러와 주세요.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val unanalyzed = allVideoList.filter { !it.isCached }
+        val targetList = if (unanalyzed.isNotEmpty()) {
+            unanalyzed
+        } else {
+            // 모든 영상이 이미 분석 완료된 상태에서 변환을 눌렀을 경우 전체 재분석 확인
+            AlertDialog.Builder(this)
+                .setTitle("전체 재변환")
+                .setMessage("모든 영상이 이미 분석되어 있습니다. 전체 영상을 다시 한글로 변환(재분석)할까요?")
+                .setPositiveButton("재변환") { _, _ ->
+                    dbHelper.clearAll()
+                    runBatchAnalysis(allVideoList.map { it.copy(isCached = false) })
+                }
+                .setNegativeButton("취소", null)
+                .show()
+            return
+        }
+
+        runBatchAnalysis(targetList)
+    }
+
+    private fun runBatchAnalysis(targetList: List<VideoItem>) {
+        lifecycleScope.launch {
+            isAnalyzing = true
+            progressBar.visibility = View.VISIBLE
+            progressBar.max = 100
+
+            val total = allVideoList.size
+
+            for (item in targetList) {
+                val uri = Uri.parse(item.uriString)
+                val analyzedItem = analyzer.analyzeVideo(uri, item.name) { _, _ -> }
+
+                // DB 저장
+                dbHelper.saveVideo(analyzedItem)
+
+                // 메모리 리스트 업데이트
+                val targetIndex = allVideoList.indexOfFirst { it.name == item.name }
+                if (targetIndex != -1) {
+                    allVideoList[targetIndex] = analyzedItem
+                } else {
+                    allVideoList.add(analyzedItem)
+                }
+
+                // 최상단 진척도 표시: [진행파일/전체파일 (진척률%)]
+                val currentAnalyzed = allVideoList.count { it.isCached }
+                val overallPct = (currentAnalyzed * 100) / total
+                tvProgress.text = "[$currentAnalyzed/$total ($overallPct%)]"
+                progressBar.progress = overallPct
 
                 filterGallery(etSearch.text.toString())
-                refreshTagChips()
             }
 
             progressBar.visibility = View.GONE
-            tvStatus.text = "🎉 100% 한글 태그 생성 완료! 총 ${allVideoList.size}개 영상이 준비되었습니다."
-            Toast.makeText(this@MainActivity, "한글 태그 분석 완료!", Toast.LENGTH_SHORT).show()
+            isAnalyzing = false
+            tvProgress.text = "[완료 $total/$total (100%)]"
+            Toast.makeText(this@MainActivity, "전체 영상 변환이 완료되었습니다! 🎉", Toast.LENGTH_SHORT).show()
         }
     }
 
     /**
-     * 파일명과 #태그를 동시에 실시간 검색합니다.
+     * 검색어 필터링 및 삼성 갤러리 스타일 날짜별 그룹화
      */
     private fun filterGallery(query: String) {
         val q = query.trim().lowercase().removePrefix("#")
@@ -274,42 +399,91 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        tvResultCount.text = "갤러리 영상 목록 (총 ${filtered.size}개)"
-        galleryAdapter.submitList(filtered)
-    }
-
-    /**
-     * 검출된 태그들을 상단 가로 스크롤 칩으로 동적 생성합니다.
-     */
-    private fun refreshTagChips() {
-        layoutTagChips.removeAllViews()
-        val allTags = allVideoList.flatMap { it.tags }.distinct().take(15)
-
-        for (tag in allTags) {
-            val btn = Button(this).apply {
-                text = tag
-                textSize = 12f
-                setTextColor(resources.getColor(R.color.tag_text, null))
-                setBackgroundColor(resources.getColor(R.color.tag_bg, null))
-                val params = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                    dpToPx(36)
-                ).apply {
-                    marginEnd = dpToPx(8)
-                }
-                layoutParams = params
-                setOnClickListener {
-                    val searchWord = tag.removePrefix("#")
-                    etSearch.setText(searchWord)
-                    etSearch.setSelection(searchWord.length)
-                }
-            }
-            layoutTagChips.addView(btn)
+        // 날짜별 그룹화 구성
+        val groupedMap = linkedMapOf<String, MutableList<VideoItem>>()
+        for (video in filtered) {
+            val dateGroupTitle = extractDateGroupTitle(video.name)
+            val list = groupedMap.getOrPut(dateGroupTitle) { mutableListOf() }
+            list.add(video)
         }
+
+        val gridItems = mutableListOf<GalleryGridItem>()
+        for ((dateTitle, videos) in groupedMap) {
+            gridItems.add(GalleryGridItem.Header(dateTitle))
+            for (v in videos) {
+                gridItems.add(GalleryGridItem.Video(v))
+            }
+        }
+
+        galleryAdapter.submitItems(gridItems)
     }
 
     /**
-     * 3 & 5. 앱 내 즉시 재생 다이얼로그 (글자 검출 시간대 바로가기 포함)
+     * 파일명(예: Screen_Recording_20261031_...)에서 날짜 그룹 제목(예: 10월 31일)을 추출합니다.
+     */
+    private fun extractDateGroupTitle(fileName: String): String {
+        // YYYYMMDD 패턴 매칭 (예: 20261031 -> 10월 31일)
+        val regex = Regex("20\\d{2}(\\d{2})(\\d{2})")
+        val match = regex.find(fileName)
+        if (match != null) {
+            val month = match.groupValues[1].toIntOrNull() ?: 0
+            val day = match.groupValues[2].toIntOrNull() ?: 0
+            if (month in 1..12 && day in 1..31) {
+                return "${month}월 ${day}일"
+            }
+        }
+        return "동영상 목록"
+    }
+
+    /**
+     * 썸네일 클릭 시 상세 정보 및 재생 옵션 팝업
+     */
+    private fun showVideoDetailDialog(videoItem: VideoItem) {
+        val dialog = Dialog(this)
+        dialog.setContentView(R.layout.dialog_video_detail)
+
+        val tvTitle = dialog.findViewById<TextView>(R.id.tvDetailTitle)
+        val tvInfo = dialog.findViewById<TextView>(R.id.tvDetailInfo)
+        val tvTags = dialog.findViewById<TextView>(R.id.tvDetailTags)
+        val btnPlaySamsung = dialog.findViewById<Button>(R.id.btnDetailPlaySamsung)
+        val btnPlayInApp = dialog.findViewById<Button>(R.id.btnDetailPlayInApp)
+        val btnClose = dialog.findViewById<Button>(R.id.btnDetailClose)
+
+        tvTitle.text = videoItem.name
+        val sec = videoItem.durationMs / 1000
+        val durStr = String.format("%02d:%02d", sec / 60, sec % 60)
+        val statusStr = if (videoItem.isCached) "OCR 변환 완료" else "분석 대기 중"
+        tvInfo.text = "⏱️ 재생시간: $durStr  |  상태: $statusStr"
+
+        tvTags.text = if (videoItem.tags.isNotEmpty()) videoItem.tags.joinToString(" ") else "#분석대기"
+
+        // 태그 텍스트 터치 시 바로 검색창에 적용
+        tvTags.setOnClickListener {
+            if (videoItem.tags.isNotEmpty()) {
+                dialog.dismiss()
+                openSearchWithText(videoItem.tags.first().removePrefix("#"))
+            }
+        }
+
+        btnPlaySamsung.setOnClickListener {
+            dialog.dismiss()
+            openSamsungVideoPlayer(videoItem)
+        }
+
+        btnPlayInApp.setOnClickListener {
+            dialog.dismiss()
+            showInAppPlayerDialog(videoItem)
+        }
+
+        btnClose.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        dialog.show()
+    }
+
+    /**
+     * 앱 내 즉시 재생 다이얼로그 (글자 검출 시간대 바로가기 포함)
      */
     private fun showInAppPlayerDialog(videoItem: VideoItem) {
         val dialog = Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
@@ -322,7 +496,6 @@ class MainActivity : AppCompatActivity() {
 
         tvTitle.text = videoItem.name
 
-        // 미디어 컨트롤러 붙이기
         val mediaController = MediaController(this)
         mediaController.setAnchorView(videoView)
         videoView.setMediaController(mediaController)
@@ -330,7 +503,6 @@ class MainActivity : AppCompatActivity() {
         val uri = Uri.parse(videoItem.uriString)
         videoView.setVideoURI(uri)
 
-        // 검출 장면 바로가기 버튼들 생성
         layoutSceneChips.removeAllViews()
         for (scene in videoItem.scenes) {
             val chip = Button(this).apply {
@@ -367,22 +539,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * 5. 삼성 동영상 앱으로 열기
+     * 삼성 동영상 앱으로 열기
      */
     private fun openSamsungVideoPlayer(videoItem: VideoItem) {
         val uri = Uri.parse(videoItem.uriString)
 
-        // 1차 시도: 삼성 기본 비디오 플레이어 패키지 지정 실행
         val samsungIntent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "video/*")
-            setPackage("com.samsung.android.video")
+            setPackage("com.sec.android.gallery3d")
             flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
         }
 
         try {
             startActivity(samsungIntent)
         } catch (e: Exception) {
-            // 삼성 플레이어가 없거나 실패 시 기본 안드로이드 비디오 플레이어로 폴백
             val fallbackIntent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(uri, "video/*")
                 flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
@@ -393,6 +563,15 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "재생할 수 있는 동영상 앱이 없습니다.", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    private fun isVideoFile(file: DocumentFile): Boolean {
+        val type = file.type ?: ""
+        val name = file.name?.lowercase() ?: ""
+        return type.startsWith("video/") ||
+                name.endsWith(".mp4") || name.endsWith(".mkv") ||
+                name.endsWith(".mov") || name.endsWith(".avi") ||
+                name.endsWith(".webm")
     }
 
     private fun queryFileName(uri: Uri): String {

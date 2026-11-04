@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="2dp">
+
+    <!-- 썸네일 컨테이너 (정사각형 1:1) -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="116dp"
+        android:background="@color/surface_variant"
+        android:foreground="?android:attr/selectableItemBackground">
+
+        <ImageView
+            android:id="@+id/ivGridThumbnail"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop" />
+
+        <!-- 상단 우측: OCR 분석 상태 뱃지 (미분석 시 대기, 분석 시 완료) -->
+        <TextView
+            android:id="@+id/tvGridStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|end"
+            android:layout_margin="4dp"
+            android:background="#B3000000"
+            android:textColor="#81C784"
+            android:textSize="9sp"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="1dp"
+            android:paddingBottom="1dp"
+            android:text="OCR" />
+
+        <!-- 하단 좌측: 재생시간 뱃지 ▶ 0:00 (삼성 갤러리 동일) -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|start"
+            android:layout_margin="4dp"
+            android:background="#B3000000"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="4dp"
+            android:paddingEnd="5dp"
+            android:paddingTop="1dp"
+            android:paddingBottom="1dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="▶"
+                android:textColor="#FFFFFF"
+                android:textSize="10sp"
+                android:layout_marginEnd="3dp" />
+
+            <TextView
+                android:id="@+id/tvGridDuration"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="00:00"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- 하단 OCR 태그 1줄 표시 -->
+    <TextView
+        android:id="@+id/tvGridTags"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="#태그"
+        android:textColor="@color/tag_text"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:singleLine="true"
+        android:ellipsize="end"
+        android:paddingTop="3dp"
+        android:paddingBottom="2dp"
+        android:paddingStart="2dp"
+        android:paddingEnd="2dp" />
+
+</LinearLayout>

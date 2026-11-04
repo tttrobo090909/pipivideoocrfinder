@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@color/surface"
+    android:padding="20dp">
+
+    <!-- 제목 -->
+    <TextView
+        android:id="@+id/tvDetailTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Screen_Recording.mp4"
+        android:textColor="@color/on_surface"
+        android:textSize="17sp"
+        android:textStyle="bold"
+        android:ellipsize="middle"
+        android:singleLine="true"
+        android:layout_marginBottom="8dp" />
+
+    <!-- 재생시간 및 상태 -->
+    <TextView
+        android:id="@+id/tvDetailInfo"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="⏱️ 재생시간: 01:38  |  상태: OCR 분석 완료"
+        android:textColor="@color/on_surface_secondary"
+        android:textSize="13sp"
+        android:layout_marginBottom="12dp" />
+
+    <!-- 태그 영역 -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="🏷️ 추출된 #태그 목록"
+        android:textColor="@color/secondary"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="6dp" />
+
+    <TextView
+        android:id="@+id/tvDetailTags"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="#말씀맨 #김일출 #선생님"
+        android:textColor="@color/tag_text"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:background="@color/surface_variant"
+        android:padding="10dp"
+        android:layout_marginBottom="16dp" />
+
+    <!-- 실행 버튼들 -->
+    <Button
+        android:id="@+id/btnDetailPlaySamsung"
+        android:layout_width="match_parent"
+        android:layout_height="46dp"
+        android:text="▶️ 삼성 비디오 플레이어로 재생"
+        android:textColor="#FFFFFF"
+        android:backgroundTint="@color/samsung_blue"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp" />
+
+    <Button
+        android:id="@+id/btnDetailPlayInApp"
+        android:layout_width="match_parent"
+        android:layout_height="46dp"
+        android:text="📱 앱 내 바로 재생 (글자 장면 점프)"
+        android:textColor="#FFFFFF"
+        android:backgroundTint="@color/primary"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp" />
+
+    <Button
+        android:id="@+id/btnDetailClose"
+        android:layout_width="match_parent"
+        android:layout_height="42dp"
+        android:text="닫기"
+        android:textColor="@color/on_surface_secondary"
+        android:backgroundTint="@color/surface_variant" />
+
+</LinearLayout>
