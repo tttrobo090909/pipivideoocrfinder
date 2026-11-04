@@ -23,8 +23,6 @@ import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.*
 
 class MainActivity : AppCompatActivity() {
 
@@ -122,8 +120,7 @@ class MainActivity : AppCompatActivity() {
 
         galleryAdapter = GalleryAdapter(
             context = this,
-            onItemClicked = { videoItem -> showVideoDetailDialog(videoItem) },
-            onTagClicked = { tagText -> openSearchWithText(tagText) }
+            onItemClicked = { videoItem -> showVideoDetailDialog(videoItem) }
         )
 
         // 삼성 갤러리 스타일의 3열 그리드 레이아웃 설정
@@ -385,7 +382,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * 검색어 필터링 및 삼성 갤러리 스타일 날짜별 그룹화
+     * 검색어 필터링 및 삼성 갤러리 스타일 날짜별 기본 정렬 (최신순)
      */
     private fun filterGallery(query: String) {
         val q = query.trim().lowercase().removePrefix("#")
@@ -399,9 +396,12 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // 날짜별 그룹화 구성
+        // 날짜순(최신순) 기본 정렬
+        val sortedVideos = filtered.sortedByDescending { getVideoSortTimestamp(it.name) }
+
+        // 날짜별 그룹화
         val groupedMap = linkedMapOf<String, MutableList<VideoItem>>()
-        for (video in filtered) {
+        for (video in sortedVideos) {
             val dateGroupTitle = extractDateGroupTitle(video.name)
             val list = groupedMap.getOrPut(dateGroupTitle) { mutableListOf() }
             list.add(video)
@@ -419,10 +419,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * 파일명(예: Screen_Recording_20261031_...)에서 날짜 그룹 제목(예: 10월 31일)을 추출합니다.
+     * 파일명에서 정렬용 타임스탬프 추출 (예: 20261031)
+     */
+    private fun getVideoSortTimestamp(fileName: String): Long {
+        val regex = Regex("20\\d{2}(\\d{2})(\\d{2})")
+        val match = regex.find(fileName)
+        return match?.value?.toLongOrNull() ?: 0L
+    }
+
+    /**
+     * 파일명에서 날짜 그룹 제목(예: 10월 31일)을 추출합니다.
      */
     private fun extractDateGroupTitle(fileName: String): String {
-        // YYYYMMDD 패턴 매칭 (예: 20261031 -> 10월 31일)
         val regex = Regex("20\\d{2}(\\d{2})(\\d{2})")
         val match = regex.find(fileName)
         if (match != null) {
@@ -432,70 +440,44 @@ class MainActivity : AppCompatActivity() {
                 return "${month}월 ${day}일"
             }
         }
-        return "동영상 목록"
+        return "기타 동영상"
     }
 
     /**
-     * 썸네일 클릭 시 상세 정보 및 재생 옵션 팝업
+     * 썸네일 클릭 시: 상단에서 바로 동영상 자동 재생 + 하단에 파일명, 태그, 삼성 동영상 재생 버튼 표시
      */
     private fun showVideoDetailDialog(videoItem: VideoItem) {
-        val dialog = Dialog(this)
+        val dialog = Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
         dialog.setContentView(R.layout.dialog_video_detail)
 
+        val videoView = dialog.findViewById<VideoView>(R.id.detailVideoView)
         val tvTitle = dialog.findViewById<TextView>(R.id.tvDetailTitle)
-        val tvInfo = dialog.findViewById<TextView>(R.id.tvDetailInfo)
+        val tvDateInfo = dialog.findViewById<TextView>(R.id.tvDetailDateInfo)
+        val layoutScenes = dialog.findViewById<LinearLayout>(R.id.layoutDetailScenes)
         val tvTags = dialog.findViewById<TextView>(R.id.tvDetailTags)
         val btnPlaySamsung = dialog.findViewById<Button>(R.id.btnDetailPlaySamsung)
-        val btnPlayInApp = dialog.findViewById<Button>(R.id.btnDetailPlayInApp)
         val btnClose = dialog.findViewById<Button>(R.id.btnDetailClose)
 
         tvTitle.text = videoItem.name
+
         val sec = videoItem.durationMs / 1000
         val durStr = String.format("%02d:%02d", sec / 60, sec % 60)
-        val statusStr = if (videoItem.isCached) "OCR 변환 완료" else "분석 대기 중"
-        tvInfo.text = "⏱️ 재생시간: $durStr  |  상태: $statusStr"
+        val dateTitle = extractDateGroupTitle(videoItem.name)
+        val statusStr = if (videoItem.isCached) "OCR 완료" else "대기 중"
+        tvDateInfo.text = "$dateTitle · 재생시간 $durStr · $statusStr"
 
         tvTags.text = if (videoItem.tags.isNotEmpty()) videoItem.tags.joinToString(" ") else "#분석대기"
 
-        // 태그 텍스트 터치 시 바로 검색창에 적용
+        // 태그 터치 시 해당 태그로 검색창 열기
         tvTags.setOnClickListener {
             if (videoItem.tags.isNotEmpty()) {
+                videoView.stopPlayback()
                 dialog.dismiss()
                 openSearchWithText(videoItem.tags.first().removePrefix("#"))
             }
         }
 
-        btnPlaySamsung.setOnClickListener {
-            dialog.dismiss()
-            openSamsungVideoPlayer(videoItem)
-        }
-
-        btnPlayInApp.setOnClickListener {
-            dialog.dismiss()
-            showInAppPlayerDialog(videoItem)
-        }
-
-        btnClose.setOnClickListener {
-            dialog.dismiss()
-        }
-
-        dialog.show()
-    }
-
-    /**
-     * 앱 내 즉시 재생 다이얼로그 (글자 검출 시간대 바로가기 포함)
-     */
-    private fun showInAppPlayerDialog(videoItem: VideoItem) {
-        val dialog = Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
-        dialog.setContentView(R.layout.dialog_in_app_player)
-
-        val tvTitle = dialog.findViewById<TextView>(R.id.tvPlayerTitle)
-        val videoView = dialog.findViewById<VideoView>(R.id.videoView)
-        val layoutSceneChips = dialog.findViewById<LinearLayout>(R.id.layoutSceneChips)
-        val btnClose = dialog.findViewById<Button>(R.id.btnClosePlayer)
-
-        tvTitle.text = videoItem.name
-
+        // 미디어 컨트롤러 설정 및 즉시 재생 시작
         val mediaController = MediaController(this)
         mediaController.setAnchorView(videoView)
         videoView.setMediaController(mediaController)
@@ -503,12 +485,13 @@ class MainActivity : AppCompatActivity() {
         val uri = Uri.parse(videoItem.uriString)
         videoView.setVideoURI(uri)
 
-        layoutSceneChips.removeAllViews()
+        // 자막 검출 장면 바로가기 버튼 생성
+        layoutScenes.removeAllViews()
         for (scene in videoItem.scenes) {
             val chip = Button(this).apply {
-                val secStr = String.format("%02d:%02d", scene.timestampSeconds / 60, scene.timestampSeconds % 60)
-                val previewText = if (scene.text.length > 8) scene.text.take(8) + "..." else scene.text
-                text = "▶ $secStr ($previewText)"
+                val s = String.format("%02d:%02d", scene.timestampSeconds / 60, scene.timestampSeconds % 60)
+                val preview = if (scene.text.length > 8) scene.text.take(8) + "..." else scene.text
+                text = "▶ $s ($preview)"
                 textSize = 11f
                 setTextColor(resources.getColor(R.color.on_surface, null))
                 setBackgroundColor(resources.getColor(R.color.surface_variant, null))
@@ -523,16 +506,27 @@ class MainActivity : AppCompatActivity() {
                     videoView.start()
                 }
             }
-            layoutSceneChips.addView(chip)
+            layoutScenes.addView(chip)
         }
 
         videoView.setOnPreparedListener {
             videoView.start()
         }
 
+        // 삼성 동영상 플레이어로 바로 열기 버튼
+        btnPlaySamsung.setOnClickListener {
+            videoView.stopPlayback()
+            dialog.dismiss()
+            openSamsungVideoPlayer(videoItem)
+        }
+
         btnClose.setOnClickListener {
             videoView.stopPlayback()
             dialog.dismiss()
+        }
+
+        dialog.setOnDismissListener {
+            videoView.stopPlayback()
         }
 
         dialog.show()

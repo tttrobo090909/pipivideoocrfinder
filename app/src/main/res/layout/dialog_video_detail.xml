@@ -3,81 +3,106 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:background="@color/surface"
-    android:padding="20dp">
+    android:background="@color/surface">
 
-    <!-- 제목 -->
-    <TextView
-        android:id="@+id/tvDetailTitle"
+    <!-- 상단: 동영상 즉시 재생 뷰어 (탭하자마자 재생) -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="240dp"
+        android:background="#000000">
+
+        <VideoView
+            android:id="@+id/detailVideoView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_gravity="center" />
+    </FrameLayout>
+
+    <!-- 하단: 상세 정보 및 조작 영역 -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Screen_Recording.mp4"
-        android:textColor="@color/on_surface"
-        android:textSize="17sp"
-        android:textStyle="bold"
-        android:ellipsize="middle"
-        android:singleLine="true"
-        android:layout_marginBottom="8dp" />
+        android:orientation="vertical"
+        android:padding="16dp">
 
-    <!-- 재생시간 및 상태 -->
-    <TextView
-        android:id="@+id/tvDetailInfo"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="⏱️ 재생시간: 01:38  |  상태: OCR 분석 완료"
-        android:textColor="@color/on_surface_secondary"
-        android:textSize="13sp"
-        android:layout_marginBottom="12dp" />
+        <!-- 파일명 -->
+        <TextView
+            android:id="@+id/tvDetailTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Screen_Recording.mp4"
+            android:textColor="@color/on_surface"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:singleLine="true"
+            android:ellipsize="middle"
+            android:layout_marginBottom="4dp" />
 
-    <!-- 태그 영역 -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="🏷️ 추출된 #태그 목록"
-        android:textColor="@color/secondary"
-        android:textSize="12sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="6dp" />
+        <!-- 날짜 및 재생시간 -->
+        <TextView
+            android:id="@+id/tvDetailDateInfo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="2026-10-31 · 재생시간 01:21"
+            android:textColor="@color/on_surface_secondary"
+            android:textSize="12sp"
+            android:layout_marginBottom="10dp" />
 
-    <TextView
-        android:id="@+id/tvDetailTags"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="#말씀맨 #김일출 #선생님"
-        android:textColor="@color/tag_text"
-        android:textSize="14sp"
-        android:textStyle="bold"
-        android:background="@color/surface_variant"
-        android:padding="10dp"
-        android:layout_marginBottom="16dp" />
+        <!-- 자막 검출 장면 점프 칩 (가로 스크롤) -->
+        <HorizontalScrollView
+            android:id="@+id/scrollDetailScenes"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scrollbars="none"
+            android:layout_marginBottom="10dp">
 
-    <!-- 실행 버튼들 -->
-    <Button
-        android:id="@+id/btnDetailPlaySamsung"
-        android:layout_width="match_parent"
-        android:layout_height="46dp"
-        android:text="▶️ 삼성 비디오 플레이어로 재생"
-        android:textColor="#FFFFFF"
-        android:backgroundTint="@color/samsung_blue"
-        android:textStyle="bold"
-        android:layout_marginBottom="8dp" />
+            <LinearLayout
+                android:id="@+id/layoutDetailScenes"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
 
-    <Button
-        android:id="@+id/btnDetailPlayInApp"
-        android:layout_width="match_parent"
-        android:layout_height="46dp"
-        android:text="📱 앱 내 바로 재생 (글자 장면 점프)"
-        android:textColor="#FFFFFF"
-        android:backgroundTint="@color/primary"
-        android:textStyle="bold"
-        android:layout_marginBottom="8dp" />
+        <!-- 추출된 태그 목록 -->
+        <TextView
+            android:id="@+id/tvDetailTags"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="#베드로의고백처럼 #예수님사랑"
+            android:textColor="@color/tag_text"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:background="@color/surface_variant"
+            android:padding="10dp"
+            android:layout_marginBottom="14dp" />
 
-    <Button
-        android:id="@+id/btnDetailClose"
-        android:layout_width="match_parent"
-        android:layout_height="42dp"
-        android:text="닫기"
-        android:textColor="@color/on_surface_secondary"
-        android:backgroundTint="@color/surface_variant" />
+        <!-- 버튼 영역: 삼성 동영상으로 열기 & 닫기 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnDetailPlaySamsung"
+                android:layout_width="0dp"
+                android:layout_height="46dp"
+                android:layout_weight="1"
+                android:text="▶️ 삼성 동영상 앱으로 열기"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="@color/samsung_blue"
+                android:textStyle="bold"
+                android:layout_marginEnd="6dp" />
+
+            <Button
+                android:id="@+id/btnDetailClose"
+                android:layout_width="80dp"
+                android:layout_height="46dp"
+                android:text="닫기"
+                android:textColor="@color/on_surface_secondary"
+                android:backgroundTint="@color/surface_variant"
+                android:layout_marginStart="6dp" />
+        </LinearLayout>
+
+    </LinearLayout>
 
 </LinearLayout>

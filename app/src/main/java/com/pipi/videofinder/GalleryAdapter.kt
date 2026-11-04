@@ -13,8 +13,7 @@ import java.util.Locale
 
 class GalleryAdapter(
     private val context: Context,
-    private val onItemClicked: (VideoItem) -> Unit,
-    private val onTagClicked: (String) -> Unit
+    private val onItemClicked: (VideoItem) -> Unit
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     companion object {
@@ -71,43 +70,19 @@ class GalleryAdapter(
     inner class VideoViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val ivThumbnail: ImageView = itemView.findViewById(R.id.ivGridThumbnail)
         private val tvDuration: TextView = itemView.findViewById(R.id.tvGridDuration)
-        private val tvStatus: TextView = itemView.findViewById(R.id.tvGridStatus)
-        private val tvTags: TextView = itemView.findViewById(R.id.tvGridTags)
 
         fun bind(item: VideoItem) {
             tvDuration.text = formatDuration(item.durationMs)
 
-            // 썸네일 로드
+            // 순수 썸네일 로드
             if (item.thumbnailBitmap != null) {
                 ivThumbnail.setImageBitmap(item.thumbnailBitmap)
             } else {
                 loadThumbnailAsync(item)
             }
 
-            // 분석 상태 뱃지
-            if (item.isCached) {
-                tvStatus.text = "✓"
-                tvStatus.setTextColor(0xFF81C784.toInt())
-            } else {
-                tvStatus.text = "대기"
-                tvStatus.setTextColor(0xFFFFB74D.toInt())
-            }
-
-            // 태그 요약 (상위 1~2개 표시)
-            if (item.tags.isNotEmpty()) {
-                tvTags.text = item.tags.joinToString(" ")
-            } else {
-                tvTags.text = "#분석대기"
-            }
-
             itemView.setOnClickListener {
                 onItemClicked(item)
-            }
-
-            tvTags.setOnClickListener {
-                if (item.tags.isNotEmpty()) {
-                    onTagClicked(item.tags.first().removePrefix("#"))
-                }
             }
         }
 
